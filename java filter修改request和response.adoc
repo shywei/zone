@@ -1,0 +1,188 @@
+= java filter修改request和response
+申亚卫<shy_we@163.com>
+:doctype: article
+:encoding: utf-8
+:toc: left
+
+====
+因为Adobe放弃了flash，所以原来基于flex的项目要用H5+js重写。原来的项目是前后端分离的，这次只迁移前端工程，API工程保留。客户要求前端JS通过JSON与API工程交互，而既存的API工程的参数和响应都是xml的。不得已只好在后端工程加拦截器修改request和response了。 +
+修改request和response时，因为request只能读取一次，所以要将内容保存起来，采用装饰类HttpServletRequestWrapper和HttpServletResponseWrapper。json和xml的格式转换使用了
+https://github.com/stleary/JSON-java[JSON-java]
+工具集。
+====
+
+[IMPORTANT]
+====
+此处约定好了前端只发送content-type为application/json的POST请求，如何有其他情况，请考虑是否需要覆盖getParameter getParameterMap getParameterNames getParameterValues等方法。并且filter中要对不同情况进行判断，格式转换也不宜再放到WrapRequest的构造方法里。
+====
+
+==== web.xml中配置拦截器
+[source,xml]
+.web.xml
+----
+<filter>
+    <filter-name>XmlFilter</filter-name>
+    <filter-class>XXX.filter.XmlFilter</filter-class>
+</filter>
+<filter-mapping>
+    <filter-name>XmlFilter</filter-name>
+    <servlet-name>XxxxServlet</servlet-name>
+</filter-mapping>
+----
+
+==== 拦截器代码
+[source,java]
+.Xmlfilter.java
+----
+public void doFilter(ServletRequest request, ServletResponse response,
+			FilterChain chain) throws IOException, ServletException {
+
+        WrapRequest wreq = new WrapRequest((HttpServletRequest)request);
+		WrapResponse wres = new WrapResponse((HttpServletResponse)response);
+
+        chain.doFilter(wreq, wres);
+
+        response.setContentType("application/json;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        String xmlData = wres.getData();
+
+        String jsonData = XML.toJSONObject(new String(xmlData)).toString();
+        PrintWriter out = response.getWriter();
+        out.write(jsonData);
+        out.flush();
+        out.close();
+		
+	}
+----
+
+==== 修改request
+[source,java]
+.WrapRequest.java
+----
+public class WrapRequest extends HttpServletRequestWrapper {
+
+	private String _body;
+    private HttpServletRequest _request;
+
+    public WrapRequest(HttpServletRequest request) throws IOException
+    {
+        super(request);
+        _request = request;
+
+        StringBuffer jsonStr = new StringBuffer();
+        BufferedReader bufferedReader = request.getReader();
+
+        String line;
+        while ((line = bufferedReader.readLine()) != null)
+            jsonStr.append(line);
+        JSONObject data = new JSONObject(jsonStr.toString());
+        _body = XML.toString(data);
+    }
+
+    @Override
+    public ServletInputStream getInputStream() throws IOException
+    {
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(_body.getBytes());
+        return new ServletInputStream()
+        {
+            public int read() throws IOException
+            {
+                return byteArrayInputStream.read();
+            }
+        };
+    }
+
+    @Override
+    public BufferedReader getReader() throws IOException
+    {
+        return new BufferedReader(new InputStreamReader(this.getInputStream()));
+    }
+
+    @Override
+    public String getHeader(String name) {
+        String header = super.getHeader(name);
+        if(null != name && "Content-Type".equals(name)){
+        	return "application/xml";
+        }
+        return header;
+    }
+
+    @Override
+    public Enumeration<String> getHeaders(String name) {
+        List<String> headerVals = Collections.list(super.getHeaders(name));
+        int index = 0;
+        for (String value : headerVals) {
+            if (null != name && "Content-Type".equalsIgnoreCase(name)) {
+                headerVals.set(index, "application/xml");
+            }
+
+            index++;
+        }
+
+        return Collections.enumeration(headerVals);
+    }
+
+    @Override
+    public String getContentType(){
+    	return this.getHeader("Content-Type");
+    }
+}
+----
+
+==== 修改response
+[source,java]
+.WrapResponse.java
+----
+public class WrapResponse extends HttpServletResponseWrapper {
+
+	private ByteArrayOutputStream out = null;
+	private ServletOutputStream stream = null;
+	private PrintWriter writer = null;
+
+	public WrapResponse(HttpServletResponse response) throws IOException {
+		super(response);
+		out = new ByteArrayOutputStream();
+		stream = new WrapOutputStream(out);
+		writer = new PrintWriter(out);
+	}
+
+	@Override
+	public ServletOutputStream getOutputStream() throws IOException {
+		return stream;
+	}
+
+	@Override
+	public PrintWriter getWriter() throws UnsupportedEncodingException {
+		return writer;
+	}
+
+	public String getData() throws IOException {
+		if (stream != null) {
+			stream.flush();
+		}
+		if (writer != null) {
+			writer.flush();
+		}
+		return out.toString();
+	}
+}
+----
+[source,java]
+.WrapOutputStream.java
+----
+public class WrapOutputStream extends ServletOutputStream {
+	private ByteArrayOutputStream out = null;
+
+	public WrapOutputStream(ByteArrayOutputStream stream)
+			throws IOException {
+		out = stream;
+	}
+
+	@Override
+	public void write(int b) throws IOException {
+		out.write(b);
+	}
+}
+----
+
+最后还是忍不住吐槽一下，虽然暂时实现了功能，但通过拦截器把请求类型和参数都改掉实在是奇葩，明明JS端几行代码的事。
