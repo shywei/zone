@@ -1,0 +1,242 @@
+= vue多页面配置
+申亚卫<shy_we@163.com>
+:doctype: article
+:encoding: utf-8
+:toc: left
+
+====
+vue官方脚手架vue-cli生成的project是一个单页面应用。我们可以通过修改webpack的配置，改造出一个多页面应用。对于页面较少的情况，可以选择手动配置，在build/webpack.base.conf.js webpack.dev.conf.js webpack.pro.conf.js config/index.js四个文件中，将默认的index.html和main.js的配置都复制一遍即可。 +
+这里不详细展开，主要介绍一种多页面自动配置的方式。
+====
+
+===== 1.安装glob包
+[source,]
+----
+npm install glob --save-dev
+----
+
+===== 2.修改文件目录
+
+原来的目录结构
+----
+build
+    utils.js
+    webpack.base.conf.js
+    webpack.dev.conf.js
+    webpack.prod.conf.js
+config
+    index.js
+src
+    App.vue
+    main.js
+index.html
+----
+修改后的目录结构
+----
+build
+    utils.js
+    webpack.base.conf.js
+    webpack.dev.conf.js
+    webpack.prod.conf.js
+config
+    index.js
+src
+    views
+        page1
+            page1.html
+            page1.js
+            Page1.vue
+        page2
+            page2.html
+            page2.js
+            Page2.vue
+----
+这里，删除了原先的入口文件，配置了两个页面page1、page2，page1.html相当于原来的index.html,page1.js相当于原先的main.js，page1.vue相当于原先的App.vue，page2同理。
+
+[source,html]
+.page1.html
+----
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>xxxx</title>
+</head>
+<body>
+  <section class="section">
+    <div id="app"></div>
+  </section>
+  <!-- built files will be auto injected -->
+</body>
+</html>
+----
+[source,javascript]
+.page1.js
+----
+// The Vue build version to load with the `import` command
+// (runtime-only or standalone) has been set in webpack.base.conf with an alias.
+
+import 'es6-promise/auto'
+import 'babel-polyfill'
+import Vue from 'vue'
+import App from './Page1.vue'
+
+Vue.config.productionTip = false
+
+/* eslint-disable no-new */
+new Vue({
+  el: '#app',
+  router,
+  components: { App },
+  template: '<App/>'
+})
+----
+[source,javascript]
+.page1.vue
+----
+<template>
+  <router-view/>
+</template>
+
+<script>
+export default {
+  name: 'app'
+}
+</script>
+
+<style>
+</style>
+----
+
+===== 3.修改配置文件
+在删除默认入口文件后，我们需要修改webpack的配置来自动找到views目录中的页面。 +
+config/index.js，删除这一行配置
+----
+index: path.resolve(__dirname, '../dist/index.html'),
+----
+
+build/utils，增加以下共通方法
+[source,javascript]
+----
+const glob = require('glob')
+
+exports.getEntry = (globPath) => {
+  if (typeof (globPath) === "string") {
+    globPath = [globPath]
+  }
+  let entries = {}
+  globPath.forEach((itemPath) => {
+    glob.sync(itemPath).forEach((entry) => {
+      let relativePath = path.dirname(entry)
+      relativePath = entry.substr(entry.indexOf('/src/') + 5)
+      if (relativePath.lastIndexOf('/') != -1) {
+        relativePath = relativePath.substr(0, relativePath.lastIndexOf('/'))
+      } else {
+        relativePath = ''
+      }
+      let basename = path.basename(entry, path.extname(entry))
+      let pathname = relativePath ? relativePath + '/' + basename : basename
+      entries[pathname] = entry
+    })
+  })
+  return entries
+}
+----
+
+build/webpack.base.conf.js，修改entry
+[source,javascript]
+----
+const entries =utils.getEntry('./src/views/**/*.js')
+
+/*entry: {
+    app: './src/main.js'
+  },*/
+entry:entries,
+----
+
+build/webpack.dev.conf.js，删除index.html相关配置
+[source,javascript]
+----
+//{ from: /.*/, to: path.posix.join(config.dev.assetsPublicPath, 'index.html') },
+
+/*new HtmlWebpackPlugin({
+      filename: 'index.html',
+      template: 'index.html',
+      inject: true
+    }),*/
+----
+
+在module.exports前增加如下配置
+[source,javascript]
+----
+const pages = utils.getEntry('./src/views/**/*.html')
+
+for (let pathname in pages) {
+  let conf = {
+    filename: pathname + '.html',
+    template: pages[pathname],
+    inject: true,
+    // necessary to consistently work with multiple chunks via CommonsChunkPlugin
+    chunksSortMode: 'dependency'
+  }
+  if (pathname in devWebpackConfig.entry) {
+    conf.chunks = ['manifest', 'vendor', pathname]
+    conf.hash = true
+  }
+  devWebpackConfig.plugins.push(new HtmlWebpackPlugin(conf))
+}
+
+----
+
+build/webpack.prod.conf.js,与dev.conf思路类似
+[source,javascript]
+----
+/*new HtmlWebpackPlugin({
+      filename: process.env.NODE_ENV === 'testing'
+        ? 'index.html'
+        : config.build.index,
+      template: 'index.html',
+      inject: true,
+      minify: {
+        removeComments: true,
+        collapseWhitespace: true,
+        removeAttributeQuotes: true
+        // more options:
+        // https://github.com/kangax/html-minifier#options-quick-reference
+      },
+      // necessary to consistently work with multiple chunks via CommonsChunkPlugin
+      chunksSortMode: 'dependency'
+    }),*/
+----
+
+[source,javascript]
+----
+const pages = utils.getEntry('./src/views/**/*.html')
+
+for (let pathname in pages) {
+  let conf = {
+    filename: pathname + '.html',
+    template: pages[pathname],
+    inject: true,
+    // necessary to consistently work with multiple chunks via CommonsChunkPlugin
+    chunksSortMode: 'dependency'
+  }
+  if (pathname in webpackConfig.entry) {
+    conf.chunks = ['manifest', 'vendor', pathname]
+    conf.hash = true
+  }
+  webpackConfig.plugins.push(new HtmlWebpackPlugin(conf))
+}
+----
+
+==== 4.启动项目
+
+ npm run dev
+
+浏览器打开http://localhost:8080/views/page1/page1.html，查看设置是否成功。
+
+[WARNING]
+====
+直接npm run build生成的代码，可能会存在js和css路径错误，修改config/index.js的build配置项assetsPublicPath: '../../',即可解决
+====
