@@ -1,0 +1,42 @@
+= vue&angular比较
+申亚卫<shy_we@163.com>
+:doctype: article
+:encoding: utf-8
+:toc: left
+
+====
+公司项目需要作flash项目到H5的移行，技术选型调查后决定在vue和angular中二选一。这是vue和angular的一些对比，个人更偏向vue，所以大部分角度可能是vue占优。
+====
+
+=== 总论
+Vue和Angular是当前非常流行的两款前端框架，两者提供了许多相似的功能，但也有着各自的优势和缺点。从轻量化、学习难度和灵活性等角度考虑，推荐使用Vue作为本次开发的框架。下面我们从多个角度对两者进行了分析和比较。
+
+=== 学习成本
+Vue更加轻量化，学习曲线更加平滑，拥有Html和JavaScript基础的开发者可以快速的创建一个Vue应用进行开发。Angular需要TypeScript基础，API规则更加的庞大和复杂，学习成本更高。两者的官方文档都提供了多语言支持。
+
+=== 灵活性
+Vue的核心库专注于view层，可以轻松地通过安装插件的形式进行扩展。Angular 为其应用程序的整体结构提供了支持，但这也意味着在灵活性方面不如Vue。一个包含了 Vuex + Vue-Router 的 Vue 项目 (gzip 之后 30kB) 相比使用angular-cli 生成的默认项目尺寸 (~130kB) 要小得多。
+
+=== 性能比较
+两者都提供了很高的性能，但由于 Vue 的虚拟 DOM 和Angular的脏数据检查，所以Vue 的速度/性能略微领先。
+具体数据请参考
+http://www.stefankrause.net/js-frameworks-benchmark6/webdriver-ts-results/table.html[这个链接]
+
+=== 浏览器支持
+Vue不支持 IE8 及以下版本，支持所有兼容 ECMAScript 5 的浏览器（IE11）。 Angular 支持大多数常用浏览器（IE9）。
+
+=== 开发维护
+Angular发布于2009年，由谷歌开发和维护，Vue发布于2014年由前谷歌员工领导的社区团队维护。Angular在v2版本进行了重写，两个长期支持版本之间不少于六个月。Vue当前版本2.x，官方未公布长期支持版本的发布计划。
+
+=== 开源社区
+在github上两者都有众多的开源插件，大量的用户收藏（star）了这两个项目。 +
+Vue资源：https://github.com/Vuejs/awesome-Vue +
+Angular资源：https://github.com/brillout/awesome-angular-components
+
+star数据参考
+http://www.timqian.com/star-history/#facebook/react&angular/angular&Vuejs/Vue[这个链接]
+
+[NOTE]
+====
+最终，选定了vue作为技术框架，出于私心的一个考虑是vue的中文文档和社区支持非常发达(笔者在外企)，上手要容易得多。
+====
